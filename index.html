@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuestionario de Interactivo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for drag and drop */
+        .draggable {
+            cursor: grab;
+            user-select: none;
+            /* Prevent text selection while dragging */
+            transition: opacity 0.2s ease;
+            /* Smooth transition for visibility */
+        }
+
+        .dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            min-height: 50px;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+            /* Added border transition */
+            display: flex;
+            /* Use flexbox for alignment */
+            align-items: center;
+            /* Center items vertically */
+            padding: 0.75rem;
+            /* Use Tailwind padding p-3 */
+        }
+
+        .drag-over {
+            background-color: #e0e0e0;
+            border-color: #aaa;
+        }
+
+        .matched {
+            background-color: #d1fae5;
+            /* Light green background */
+            border: 1px solid #059669;
+            /* Green border */
+        }
+
+        .feedback-correct {
+            color: #059669;
+            /* Green */
+        }
+
+        .feedback-incorrect {
+            color: #dc2626;
+            /* Red */
+        }
+
+        /* Style for correct/incorrect answers */
+        .correct-answer {
+            background-color: #d1fae5 !important;
+            /* Light green */
+            border: 1px solid #059669;
+        }
+
+        .incorrect-answer {
+            background-color: #fee2e2 !important;
+            /* Light red */
+            border: 1px solid #dc2626;
+        }
+
+        .correct-choice::after {
+            content: ' ✔️';
+            color: green;
+        }
+
+        .incorrect-choice::after {
+            content: ' ❌';
+            color: red;
+        }
+
+        .correct-match-feedback {
+            color: green;
+            font-weight: bold;
+        }
+
+        .incorrect-match-feedback {
+            color: red;
+            font-weight: bold;
+        }
+
+        /* Ensure dropped item takes space */
+        .drop-zone .draggable {
+            margin-left: 0.5rem;
+            /* Add some space between definition and term */
+        }
+
+        /* Hide placeholder when matched */
+        .matched .placeholder-text {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-10 rounded-lg shadow-lg">
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-8">Cuestionario Interactivo</h1>
+
+        <form id="quiz-form">
+            <div id="quiz-container" class="space-y-8"></div>
+
+            <div class="mt-10 text-center">
+                <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition duration-300">
+                    Enviar Respuestas
+                </button>
+            </div>
+        </form>
+
+        <div id="results-container" class="mt-10 p-6 bg-gray-50 rounded-lg hidden">
+            <h2 class="text-xl font-semibold text-center mb-4">Resultados</h2>
+            <p id="score" class="text-center text-lg font-bold mb-6"></p>
+            <div id="feedback" class="space-y-4"></div>
+            <div class="mt-6 text-center">
+                <button id="retry-button"
+                    class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
+                    Intentar de Nuevo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Quiz Data ---
+        const quizData = [
+            // --- Sección 1: Introducción y Conceptos Básicos ---
+            // 1. Conceptos Básicos (Matching) - EXISTENTE
+            {
+                type: 'matching',
+                question: 'Une cada concepto básico de seguridad con su definición:',
+                terms: [
+                    'Activo',
+                    'Amenaza',
+                    'Vulnerabilidad',
+                    'Riesgo',
+                    'Control'
+                ],
+                definitions: [
+                    'Recurso valioso que necesita protección.',
+                    'Evento o acción potencial que puede causar daño.',
+                    'Debilidad o fallo en un sistema que puede ser explotado.',
+                    'Probabilidad de que una amenaza explote una vulnerabilidad.',
+                    'Medida de seguridad implementada para reducir o mitigar riesgos.'
+                ],
+                correctMatches: {
+                    'Activo': 'Recurso valioso que necesita protección.',
+                    'Amenaza': 'Evento o acción potencial que puede causar daño.',
+                    'Vulnerabilidad': 'Debilidad o fallo en un sistema que puede ser explotado.',
+                    'Riesgo': 'Probabilidad de que una amenaza explote una vulnerabilidad.',
+                    'Control': 'Medida de seguridad implementada para reducir o mitigar riesgos.'
+                }
+            },
+            // 2. Evento vs Incidente (Single Choice) - EXISTENTE
+            {
+                type: 'single',
+                question: 'Según ISO 27035, ¿qué diferencia principalmente un Incidente de Seguridad de un Evento de Seguridad?',
+                options: [
+                    'Un evento siempre es malicioso, un incidente no.',
+                    'Un incidente tiene una probabilidad significativa de comprometer operaciones o amenazar la seguridad.',
+                    'Un evento requiere una respuesta inmediata, un incidente no.',
+                    'Un incidente es siempre causado por un atacante externo.'
+                ],
+                correctAnswer: 'Un incidente tiene una probabilidad significativa de comprometer operaciones o amenazar la seguridad.'
+            },
+            // 3. Pilares CIA+ (Multiple Choice) - EXISTENTE
+            {
+                type: 'multiple',
+                question: 'Selecciona los pilares fundamentales de la seguridad de la información (Tríada CIA ampliada):',
+                options: [
+                    'Confidencialidad', // Correcta
+                    'Complejidad',
+                    'Integridad',       // Correcta
+                    'Costo',
+                    'Disponibilidad',   // Correcta
+                    'Autenticidad',     // Correcta
+                    'Trazabilidad'      // Correcta (Añadida para completar CIA+)
+                ],
+                correctAnswers: ['Confidencialidad', 'Integridad', 'Disponibilidad', 'Autenticidad', 'Trazabilidad']
+            },
+            // 4. Enfoques de Seguridad (Single Choice) - EXISTENTE
+            {
+                type: 'single',
+                question: '¿Qué enfoque de seguridad se centra en identificar incidentes que ya están ocurriendo o han ocurrido?',
+                options: [
+                    'Preventivo',
+                    'Detectivo', // Correcta
+                    'Responsivo',
+                    'Proactivo'
+                ],
+                correctAnswer: 'Detectivo'
+            },
+            // 5. Definición Incidente ITIL (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'Según ITIL, un incidente es principalmente algo que causa o puede causar...',
+                options: [
+                    'Una violación de datos personales.',
+                    'Una vulnerabilidad en el software.',
+                    'Una interrupción o reducción de calidad en un servicio estándar.', // Correcta
+                    'Un acceso no autorizado a la red.'
+                ],
+                correctAnswer: 'Una interrupción o reducción de calidad en un servicio estándar.'
+            },
+            // 6. Taxonomía: Obtención de Información (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: '¿Cuál de las siguientes acciones corresponde a la categoría "Obtención de Información" en la taxonomía de incidentes?',
+                options: [
+                    'Instalar un ransomware.',
+                    'Realizar un ataque DDoS.',
+                    'Usar ingeniería social para conseguir contraseñas.', // Correcta
+                    'Modificar datos en una base de datos.'
+                ],
+                correctAnswer: 'Usar ingeniería social para conseguir contraseñas.'
+            },
+            // 7. Prioridades: Emergencia (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'Una prioridad de "Emergencia" para un incidente implica que...',
+                options: [
+                    'Puede esperar a ser resuelto la semana siguiente.',
+                    'Requiere atención inmediata y potencialmente recursos en paralelo.', // Correcta
+                    'Se resuelve solo si hay personal disponible.',
+                    'Es un problema menor sin impacto significativo.'
+                ],
+                correctAnswer: 'Requiere atención inmediata y potencialmente recursos en paralelo.'
+            },
+            // --- Sección 2: CSIRT ---
+            // 8. Origen CSIRT (Single Choice) - REPETIDA (anterior 5)
+            {
+                type: 'single',
+                question: '¿Qué evento histórico impulsó la creación del primer centro de coordinación de respuesta a incidentes (CERT/CC)?',
+                options: [
+                    'El ataque Stuxnet',
+                    'El incidente de Equifax',
+                    'El Gusano Morris de 1988', // Correcta
+                    'La caída de Colonial Pipeline'
+                ],
+                correctAnswer: 'El Gusano Morris de 1988'
+            },
+            // 9. Tipos de Servicios CSIRT (Multiple Choice) - REPETIDA (anterior 6)
+            {
+                type: 'multiple',
+                question: '¿Cuáles de los siguientes son considerados servicios PROACTIVOS ofrecidos por un CSIRT?',
+                options: [
+                    'Análisis de incidentes',
+                    'Evaluaciones o auditorías de seguridad', // Correcta
+                    'Respuesta a incidentes in situ',
+                    'Formación y concienciación en seguridad', // Correcta
+                    'Observatorio de tecnología', // Correcta
+                    'Tratamiento de vulnerabilidades (manejo post-detección)'
+                ],
+                correctAnswers: ['Evaluaciones o auditorías de seguridad', 'Formación y concienciación en seguridad', 'Observatorio de tecnología']
+            },
+            // 10. Tipos de CSIRT (Matching) - REPETIDA (anterior 7)
+            {
+                type: 'matching',
+                question: 'Une el tipo de CSIRT con su descripción principal:',
+                terms: [
+                    'CSIRT Nacional',
+                    'CSIRT Interno',
+                    'CSIRT Comercial',
+                    'CSIRT de Soporte'
+                ],
+                definitions: [
+                    'Opera exclusivamente para la organización a la que pertenece.',
+                    'Actúa como punto de contacto de seguridad para un país.',
+                    'Ofrece servicios de respuesta a incidentes a clientes mediante pago.',
+                    'Se centra en la seguridad de productos específicos.'
+                ],
+                correctMatches: {
+                    'CSIRT Nacional': 'Actúa como punto de contacto de seguridad para un país.',
+                    'CSIRT Interno': 'Opera exclusivamente para la organización a la que pertenece.',
+                    'CSIRT Comercial': 'Ofrece servicios de respuesta a incidentes a clientes mediante pago.',
+                    'CSIRT de Soporte': 'Se centra en la seguridad de productos específicos.'
+                }
+            },
+            // 11. Objetivo Principal CSIRT (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'El objetivo primordial de un CSIRT es:',
+                options: [
+                    'Desarrollar nuevo software antivirus.',
+                    'Vender hardware de red seguro.',
+                    'Proteger las infraestructuras críticas de la información del sector al que sirve.', // Correcta
+                    'Gestionar las redes sociales de la organización.'
+                ],
+                correctAnswer: 'Proteger las infraestructuras críticas de la información del sector al que sirve.'
+            },
+            // 12. Servicios CSIRT Reactivos (Multiple Choice) - NUEVA
+            {
+                type: 'multiple',
+                question: 'Selecciona servicios considerados REACTIVOS en la lista del CERT/CC:',
+                options: [
+                    'Análisis de vulnerabilidades', // Reactivo (Respuesta a vulnerabilidad)
+                    'Consultoría de seguridad',
+                    'Tratamiento de incidentes', // Reactivo
+                    'Análisis de artefactos (malware)', // Reactivo
+                    'Sensibilización'
+                ],
+                correctAnswers: ['Análisis de vulnerabilidades', 'Tratamiento de incidentes', 'Análisis de artefactos (malware)']
+            },
+            // 13. Infraestructura CSIRT (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'Una recomendación clave para la infraestructura de red de un CSIRT es:',
+                options: [
+                    'Integrarla completamente con la red principal de la organización.',
+                    'Utilizar únicamente software propietario y de pago.',
+                    'Mantenerla separada de la red de la organización, con segmentos aislados (producción/laboratorio).', // Correcta
+                    'Deshabilitar todos los logs para mejorar el rendimiento.'
+                ],
+                correctAnswer: 'Mantenerla separada de la red de la organización, con segmentos aislados (producción/laboratorio).'
+            },
+            // --- Sección 3: Ciclo de Vida IR ---
+            // 14. Fases del Ciclo de Vida IR (NIST) (Multiple Choice) - REPETIDA (anterior 8)
+            {
+                type: 'multiple',
+                question: 'Según el marco NIST 800-61, ¿cuáles son las fases principales del ciclo de vida de respuesta a incidentes?',
+                options: [
+                    'Planificación',
+                    'Preparación', // Correcta
+                    'Detección y Análisis', // Correcta
+                    'Contención, Erradicación y Recuperación', // Correcta
+                    'Evaluación de Riesgos',
+                    'Actividades Post-Incidente' // Correcta
+                ],
+                correctAnswers: ['Preparación', 'Detección y Análisis', 'Contención, Erradicación y Recuperación', 'Actividades Post-Incidente']
+            },
+            // 15. Fase de Preparación (Single Choice) - REPETIDA (anterior 9)
+            {
+                type: 'single',
+                question: '¿Cuál es el objetivo principal de la fase de Preparación en el ciclo de vida de IR?',
+                options: [
+                    'Eliminar la causa raíz de un incidente activo.',
+                    'Analizar los logs después de un incidente.',
+                    'Establecer y mantener la capacidad de responder eficazmente a incidentes.', // Correcta
+                    'Restaurar los servicios a la normalidad.'
+                ],
+                correctAnswer: 'Establecer y mantener la capacidad de responder eficazmente a incidentes.'
+            },
+            // 16. Fase de Detección y Análisis (Multiple Choice) - NUEVA
+            {
+                type: 'multiple',
+                question: '¿Qué actividades clave se realizan durante la fase de Detección y Análisis?',
+                options: [
+                    'Validar alertas para reducir falsos positivos.', // Correcta
+                    'Restaurar sistemas desde backups.',
+                    'Estimar el alcance del incidente.', // Correcta
+                    'Designar roles como el gestor del incidente.', // Correcta
+                    'Implementar nuevos controles preventivos.'
+                ],
+                correctAnswers: ['Validar alertas para reducir falsos positivos.', 'Estimar el alcance del incidente.', 'Designar roles como el gestor del incidente.']
+            },
+            // 17. Fase de Contención (Single Choice) - REPETIDA (anterior 10)
+            {
+                type: 'single',
+                question: 'En la respuesta a incidentes, ¿qué busca principalmente la fase de Contención?',
+                options: [
+                    'Documentar las lecciones aprendidas.',
+                    'Limitar la propagación y el impacto inmediato del incidente.', // Correcta
+                    'Identificar cómo entró el atacante.',
+                    'Verificar la integridad de los backups.'
+                ],
+                correctAnswer: 'Limitar la propagación y el impacto inmediato del incidente.'
+            },
+            // 18. Fase de Erradicación (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'La fase de Erradicación se enfoca principalmente en:',
+                options: [
+                    'Aislar los sistemas comprometidos.',
+                    'Eliminar la causa raíz del incidente (malware, vulnerabilidad).', // Correcta
+                    'Notificar a las autoridades.',
+                    'Realizar el primer análisis de logs.'
+                ],
+                correctAnswer: 'Eliminar la causa raíz del incidente (malware, vulnerabilidad).'
+            },
+            // 19. Fase de Recuperación (Multiple Choice) - NUEVA
+            {
+                type: 'multiple',
+                question: '¿Qué acciones son típicas de la fase de Recuperación?',
+                options: [
+                    'Confirmar que los sistemas funcionan adecuadamente.', // Correcta
+                    'Desplegar controles para prevenir incidentes similares.', // Correcta
+                    'Realizar el análisis inicial de alertas.',
+                    'Restaurar servicios a la operación normal.', // Correcta
+                    'Desconectar equipos de la red.'
+                ],
+                correctAnswers: ['Confirmar que los sistemas funcionan adecuadamente.', 'Desplegar controles para prevenir incidentes similares.', 'Restaurar servicios a la operación normal.']
+            },
+            // 20. Actividades Post-Incidente (Single Choice) - REPETIDA (anterior 11)
+            {
+                type: 'single',
+                question: '¿Qué actividad es fundamental en la fase de Actividades Post-Incidente?',
+                options: [
+                    'Desconectar los sistemas afectados de la red.',
+                    'Realizar el análisis inicial de alertas (Triaje).',
+                    'Identificar y documentar las lecciones aprendidas para mejorar.', // Correcta
+                    'Implementar firewalls por primera vez.'
+                ],
+                correctAnswer: 'Identificar y documentar las lecciones learnedidas para mejorar.'
+            },
+            // 21. IR en Cloud: Preparación (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'Al prepararse para responder a incidentes en la nube, ¿qué es crucial entender respecto al proveedor?',
+                options: [
+                    'El color de su logo.',
+                    'Los Acuerdos de Nivel de Servicio (SLAs) y sus capacidades forenses.', // Correcta
+                    'La ubicación exacta de sus oficinas centrales.',
+                    'El número total de clientes que tiene.'
+                ],
+                correctAnswer: 'Los Acuerdos de Nivel de Servicio (SLAs) y sus capacidades forenses.'
+            },
+            // 22. IR en Cloud: Logs (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: '¿Cuál es una consideración importante sobre los logs en la respuesta a incidentes en la nube?',
+                options: [
+                    'Siempre son fácilmente accesibles y completos.',
+                    'No son importantes porque el proveedor se encarga de todo.',
+                    'Su almacenamiento, retención y acceso pueden ser complejos y deben planificarse.', // Correcta
+                    'Es mejor deshabilitarlos para ahorrar costos.'
+                ],
+                correctAnswer: 'Su almacenamiento, retención y acceso pueden ser complejos y deben planificarse.'
+            },
+            // 23. Proceso de Triaje (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'En el proceso de gestión de incidentes, ¿qué ocurre inmediatamente después de la Verificación del incidente y antes de la creación del ticket?',
+                options: [
+                    'Análisis post-incidente.',
+                    'Recolección de datos técnicos.',
+                    'Triaje (clasificación y priorización).', // Correcta
+                    'Solución y recuperación.'
+                ],
+                correctAnswer: 'Triaje (clasificación y priorización).'
+            },
+            // --- Sección 4: Amenazas, Vulnerabilidades y Ataques ---
+            // 24. Defensa en Profundidad (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'El concepto de "Defensa en Profundidad" implica:',
+                options: [
+                    'Usar solo el firewall más caro del mercado.',
+                    'Confiar únicamente en el antivirus.',
+                    'Implementar múltiples capas de controles de seguridad.', // Correcta
+                    'Enfocarse solo en la seguridad física.'
+                ],
+                correctAnswer: 'Implementar múltiples capas de controles de seguridad.'
+            },
+            // 25. Amenazas Cloud CSA (Matching) - REPETIDA (anterior 12)
+            {
+                type: 'matching',
+                question: 'Une la amenaza Cloud (según CSA) con su descripción:',
+                terms: [
+                    'Abuso y mal uso',
+                    'Interfaces y APIs poco seguras',
+                    'Amenazas internas',
+                    'Secuestro de sesión/servicio'
+                ],
+                definitions: [
+                    'Explotación de la autenticación o autorización débil en los puntos de gestión de la nube.',
+                    'Uso de recursos cloud para fines ilícitos (ej: alojar botnets).',
+                    'Robo de credenciales de usuario para realizar acciones no autorizadas.',
+                    'Riesgo proveniente de empleados (intencionado o por error).'
+                ],
+                correctMatches: {
+                    'Abuso y mal uso': 'Uso de recursos cloud para fines ilícitos (ej: alojar botnets).',
+                    'Interfaces y APIs poco seguras': 'Explotación de la autenticación o autorización débil en los puntos de gestión de la nube.',
+                    'Amenazas internas': 'Riesgo proveniente de empleados (intencionado o por error).',
+                    'Secuestro de sesión/servicio': 'Robo de credenciales de usuario para realizar acciones no autorizadas.'
+                }
+            },
+            // 26. Amenaza Cloud CSA: Tecnologías Compartidas (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'El riesgo de "VM escape" está asociado principalmente a qué amenaza cloud según CSA?',
+                options: [
+                    'Pérdida o fuga de información',
+                    'Problemas derivados de las tecnologías compartidas', // Correcta
+                    'Riesgos por desconocimiento',
+                    'Abuso y mal uso del cloud computing'
+                ],
+                correctAnswer: 'Problemas derivados de las tecnologías compartidas'
+            },
+            // 27. Tipos de Ataques (Single Choice) - REPETIDA (anterior 13)
+            {
+                type: 'single',
+                question: '¿Qué tipo de ataque busca engañar a los usuarios para que revelen información confidencial haciéndose pasar por una entidad legítima?',
+                options: [
+                    'DDoS',
+                    'Ransomware',
+                    'Phishing', // Correcta
+                    'Inyección SQL'
+                ],
+                correctAnswer: 'Phishing'
+            },
+            // 28. CVE (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: '¿Qué representa un identificador CVE (Common Vulnerabilities and Exposures)?',
+                options: [
+                    'Un tipo específico de malware.',
+                    'Un estándar para la gestión de logs.',
+                    'Una vulnerabilidad de seguridad conocida y catalogada públicamente.', // Correcta
+                    'Un protocolo de cifrado de red.'
+                ],
+                correctAnswer: 'Una vulnerabilidad de seguridad conocida y catalogada públicamente.'
+            },
+            // 29. Herramientas: Shodan (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: '¿Para qué se utiliza principalmente la herramienta Shodan?',
+                options: [
+                    'Analizar archivos en busca de malware.',
+                    'Realizar ataques de fuerza bruta.',
+                    'Buscar dispositivos conectados a Internet (IoT, servidores, etc.).', // Correcta
+                    'Gestionar tickets de incidentes.'
+                ],
+                correctAnswer: 'Buscar dispositivos conectados a Internet (IoT, servidores, etc.).'
+            },
+            // 30. Ransomware (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'El objetivo principal del Ransomware es:',
+                options: [
+                    'Robar contraseñas bancarias.',
+                    'Cifrar los archivos de la víctima y exigir un rescate.', // Correcta
+                    'Realizar espionaje industrial a largo plazo.',
+                    'Inutilizar el hardware del sistema.'
+                ],
+                correctAnswer: 'Cifrar los archivos de la víctima y exigir un rescate.'
+            },
+            // --- Sección 5: Desafíos y Factores de Éxito ---
+            // 31. Riesgos Cloud Gartner (Multiple Choice) - REPETIDA (anterior 14)
+            {
+                type: 'multiple',
+                question: 'Según Gartner, ¿cuáles son riesgos importantes a considerar en entornos Cloud?',
+                options: [
+                    'Localización de los datos y cumplimiento normativo', // Correcta
+                    'Facilidad para conseguir nuevo hardware',
+                    'Aislamiento de datos en entornos multi-tenant', // Correcta
+                    'Viabilidad a largo plazo del proveedor', // Correcta
+                    'Exceso de opciones de configuración'
+                ],
+                correctAnswers: ['Localización de los datos y cumplimiento normativo', 'Aislamiento de datos en entornos multi-tenant', 'Viabilidad a largo plazo del proveedor']
+            },
+            // 32. Riesgo Gartner: Cumplimiento Normativo (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'El riesgo de "Cumplimiento normativo" en la nube (Gartner) se refiere a la necesidad de que el proveedor...',
+                options: [
+                    'Ofrezca los precios más bajos.',
+                    'Tenga oficinas en todos los países.',
+                    'Se someta a auditorías y certificaciones de seguridad relevantes.', // Correcta
+                    'Utilice solo hardware de una marca específica.'
+                ],
+                correctAnswer: 'Se someta a auditorías y certificaciones de seguridad relevantes.'
+            },
+            // 33. Desafíos Generales (Multiple Choice) - NUEVA
+            {
+                type: 'multiple',
+                question: '¿Cuáles son desafíos comunes en la gestión de incidentes?',
+                options: [
+                    'La detección temprana de las incidencias.', // Correcta
+                    'La falta de presupuesto y personal cualificado.', // Correcta (Limitaciones de recursos)
+                    'Convencer a usuarios y técnicos de registrar incidentes.', // Correcta (Concienciación)
+                    'Tener demasiada documentación.'
+                ],
+                correctAnswers: ['La detección temprana de las incidencias.', 'La falta de presupuesto y personal cualificado.', 'Convencer a usuarios y técnicos de registrar incidentes.']
+            },
+            // 34. Factores de Éxito (Single Choice) - REPETIDA (anterior 15)
+            {
+                type: 'single',
+                question: '¿Cuál es considerado un factor clave de éxito para una gestión de incidentes eficaz?',
+                options: [
+                    'Tener el presupuesto más alto posible.',
+                    'Contratar exclusivamente personal externo.',
+                    'Un Service Desk eficiente y bien definido.', // Correcta
+                    'Evitar la documentación para ser más ágil.'
+                ],
+                correctAnswer: 'Un Service Desk eficiente y bien definido.'
+            },
+            // 35. Factor de Éxito: SLAs (Single Choice) - NUEVA
+            {
+                type: 'single',
+                question: 'Definir claramente los objetivos de la Gestión de Incidentes, incluyendo los SLAs, es un factor de éxito porque:',
+                options: [
+                    'Elimina la necesidad de monitoreo.',
+                    'Establece expectativas claras de servicio y tiempos de respuesta.', // Correcta
+                    'Garantiza que nunca ocurrirán incidentes.',
+                    'Reduce los costos de software.'
+                ],
+                correctAnswer: 'Establece expectativas claras de servicio y tiempos de respuesta.'
+            },
+            {
+                type: 'single',
+                question: '¿Cuál es el objetivo principal de un CSIRT según los documentos?',
+                options: [
+                    'Desarrollar software de seguridad',
+                    'Proteger infraestructuras críticas de la información',
+                    'Vender productos antivirus',
+                    'Realizar auditorías financieras'
+                ],
+                correctAnswer: 'Proteger infraestructuras críticas de la información'
+            },
+            {
+                type: 'single',
+                question: 'Según la norma ISO 27035, ¿qué es un Evento de Seguridad?',
+                options: [
+                    'Un ataque exitoso confirmado',
+                    'Una ocurrencia identificada que indica una posible violación de seguridad o fallo de control',
+                    'Cualquier correo electrónico recibido',
+                    'Una actualización de software'
+                ],
+                correctAnswer: 'Una ocurrencia identificada que indica una posible violación de seguridad o fallo de control'
+            },
+            {
+                type: 'single',
+                question: '¿Qué enfoque de seguridad busca evitar que ocurran incidentes?',
+                options: [
+                    'Detectivo',
+                    'Responsivo',
+                    'Preventivo',
+                    'Correctivo'
+                ],
+                correctAnswer: 'Preventivo'
+            },
+            {
+                type: 'multiple',
+                question: 'Selecciona los servicios REACTIVOS que puede ofrecer un CSIRT (elige todas las opciones correctas):',
+                options: [
+                    'Tratamiento de incidentes',
+                    'Evaluaciones o auditorías de la seguridad',
+                    'Alertas y advertencias',
+                    'Análisis de la vulnerabilidad',
+                    'Desarrollo de herramientas de seguridad'
+                ],
+                correctAnswers: ['Tratamiento de incidentes', 'Alertas y advertencias', 'Análisis de la vulnerabilidad']
+            },
+            {
+                type: 'multiple',
+                question: '¿Cuáles de los siguientes son considerados pilares de la Seguridad de la Información (Tríada CIA+)?',
+                options: [
+                    'Costo',
+                    'Confidencialidad',
+                    'Integridad',
+                    'Disponibilidad',
+                    'Complejidad'
+                ],
+                correctAnswers: ['Confidencialidad', 'Integridad', 'Disponibilidad']
+            },
+            {
+                type: 'matching',
+                question: 'Une cada término con su definición correcta:',
+                terms: [
+                    'Amenaza',
+                    'Vulnerabilidad',
+                    'Riesgo',
+                    'Control'
+                ],
+                definitions: [
+                    'Debilidad o fallo en un sistema que puede ser explotado.',
+                    'Medida de seguridad implementada para reducir riesgos.',
+                    'Evento o acción que puede causar daño.',
+                    'Probabilidad de que una amenaza explote una vulnerabilidad.'
+                ],
+                correctMatches: {
+                    'Amenaza': 'Evento o acción que puede causar daño.',
+                    'Vulnerabilidad': 'Debilidad o fallo en un sistema que puede ser explotado.',
+                    'Riesgo': 'Probabilidad de que una amenaza explote una vulnerabilidad.',
+                    'Control': 'Medida de seguridad implementada para reducir riesgos.'
+                }
+            },
+            {
+                type: 'matching',
+                question: 'Une cada fase del ciclo de vida de respuesta a incidentes (NIST) con su objetivo principal:',
+                terms: [
+                    'Preparación',
+                    'Detección y Análisis',
+                    'Contención, Erradicación y Recuperación',
+                    'Actividades Post-Incidente'
+                ],
+                definitions: [
+                    'Limitar el daño, eliminar la causa y restaurar sistemas.',
+                    'Aprender del incidente para mejorar la respuesta futura.',
+                    'Establecer y mantener la capacidad de responder eficazmente.',
+                    'Identificar incidentes y comprender su naturaleza e impacto.'
+                ],
+                correctMatches: {
+                    'Preparación': 'Establecer y mantener la capacidad de responder eficazmente.',
+                    'Detección y Análisis': 'Identificar incidentes y comprender su naturaleza e impacto.',
+                    'Contención, Erradicación y Recuperación': 'Limitar el daño, eliminar la causa y restaurar sistemas.',
+                    'Actividades Post-Incidente': 'Aprender del incidente para mejorar la respuesta futura.'
+                }
+            }
+        ];
+
+        // --- DOM Elements ---
+        const quizContainer = document.getElementById('quiz-container');
+        const quizForm = document.getElementById('quiz-form');
+        const resultsContainer = document.getElementById('results-container');
+        const scoreElement = document.getElementById('score');
+        const feedbackElement = document.getElementById('feedback');
+        const retryButton = document.getElementById('retry-button');
+
+
+        // --- Global Variables for Drag & Drop ---
+        let draggedItem = null;
+        let sourceContainer = null; // To remember where the item came from
+
+        // --- Functions ---
+
+        // Function to shuffle array elements (Fisher-Yates shuffle)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Function to load quiz questions into the DOM
+        function loadQuiz() {
+            quizContainer.innerHTML = ''; // Clear previous questions
+            resultsContainer.classList.add('hidden'); // Hide results
+            quizForm.reset(); // Reset form inputs
+            document.querySelectorAll('.correct-answer, .incorrect-answer').forEach(el => {
+                el.classList.remove('correct-answer', 'incorrect-answer');
+            });
+            feedbackElement.innerHTML = ''; // Clear previous feedback
+
+            quizData.forEach((qData, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.classList.add('bg-white', 'p-6', 'rounded-lg', 'shadow');
+                questionDiv.setAttribute('data-question-index', index); // Store original index
+
+                const questionTitle = document.createElement('h3');
+                questionTitle.classList.add('text-lg', 'font-semibold', 'mb-4', 'text-gray-700');
+                questionTitle.textContent = `Pregunta ${index + 1}: ${qData.question}`;
+                questionDiv.appendChild(questionTitle);
+
+                const optionsContainer = document.createElement('div');
+
+
+                if (qData.type === 'single' || qData.type === 'multiple') {
+                    optionsContainer.classList.add('space-y-3'); // Add spacing for radio/checkbox
+                    const inputType = qData.type === 'single' ? 'radio' : 'checkbox';
+                    shuffleArray([...qData.options]).forEach(option => {
+                        const label = document.createElement('label');
+                        label.classList.add('flex', 'items-center', 'p-3', 'border', 'rounded-md', 'hover:bg-gray-50', 'transition', 'duration-150', 'cursor-pointer');
+
+                        const input = document.createElement('input');
+                        input.type = inputType;
+                        input.name = `question_${index}`;
+                        input.value = option;
+                        input.classList.add('mr-3', 'h-4', 'w-4', inputType === 'radio' ? 'text-blue-600' : 'text-blue-600', 'focus:ring-blue-500', 'border-gray-300');
+
+                        const span = document.createElement('span');
+                        span.textContent = option;
+                        span.classList.add('text-gray-800');
+
+                        label.appendChild(input);
+                        label.appendChild(span);
+                        optionsContainer.appendChild(label);
+                    });
+                } else if (qData.type === 'matching') {
+                    optionsContainer.classList.add('grid', 'grid-cols-1', 'md:grid-cols-2', 'gap-6'); // Grid layout for matching
+
+                    const termsDiv = document.createElement('div');
+                    termsDiv.classList.add('space-y-3', 'terms-container-js'); // Added class for easy selection
+                    const termsTitle = document.createElement('h4');
+                    termsTitle.textContent = 'Términos';
+                    termsTitle.classList.add('font-medium', 'text-gray-600', 'mb-2');
+                    termsDiv.appendChild(termsTitle);
+
+                    const shuffledTerms = shuffleArray([...qData.terms]);
+                    shuffledTerms.forEach(term => {
+                        const termElement = document.createElement('div');
+                        termElement.textContent = term;
+                        termElement.classList.add('p-3', 'bg-blue-100', 'border', 'border-blue-300', 'rounded-md', 'draggable');
+                        termElement.draggable = true;
+                        // Use a more robust ID including the index
+                        termElement.id = `term_${index}_${term.replace(/[^a-zA-Z0-9]/g, '_')}`; // Sanitize ID
+                        termElement.addEventListener('dragstart', handleDragStart);
+                        termElement.addEventListener('dragend', handleDragEnd); // Add dragend listener here
+                        termsDiv.appendChild(termElement);
+                    });
+
+                    const definitionsDiv = document.createElement('div');
+                    definitionsDiv.classList.add('space-y-3');
+                    const definitionsTitle = document.createElement('h4');
+                    definitionsTitle.textContent = 'Definiciones';
+                    definitionsTitle.classList.add('font-medium', 'text-gray-600', 'mb-2');
+                    definitionsDiv.appendChild(definitionsTitle);
+
+                    const shuffledDefinitions = shuffleArray([...qData.definitions]);
+                    shuffledDefinitions.forEach(definition => {
+                        const dropZone = document.createElement('div');
+                        // Added flex, items-center, justify-between
+                        dropZone.classList.add('border', 'border-gray-300', 'rounded-md', 'drop-zone');
+                        dropZone.dataset.definition = definition;
+                        dropZone.addEventListener('dragover', handleDragOver);
+                        dropZone.addEventListener('dragleave', handleDragLeave);
+                        dropZone.addEventListener('drop', handleDrop);
+
+                        const definitionText = document.createElement('span');
+                        definitionText.textContent = definition;
+                        definitionText.classList.add('text-gray-800', 'mr-2', 'flex-grow'); // Allow text to take space
+                        dropZone.appendChild(definitionText);
+
+                        // Placeholder text (initially visible)
+                        const placeholder = document.createElement('span');
+                        placeholder.classList.add('text-gray-400', 'italic', 'text-sm', 'placeholder-text');
+                        placeholder.textContent = '(Arrastra aquí)';
+                        dropZone.appendChild(placeholder);
+
+
+                        definitionsDiv.appendChild(dropZone);
+                    });
+
+                    optionsContainer.appendChild(termsDiv);
+                    optionsContainer.appendChild(definitionsDiv);
+                }
+
+                questionDiv.appendChild(optionsContainer);
+                quizContainer.appendChild(questionDiv);
+            });
+        }
+
+        // --- Drag and Drop Handlers ---
+        function handleDragStart(e) {
+            // Only proceed if the element is actually draggable
+            if (!e.target.classList.contains('draggable')) return;
+
+            draggedItem = e.target;
+            sourceContainer = e.target.parentElement; // Remember the original parent
+            e.dataTransfer.setData('text/plain', e.target.id);
+            e.dataTransfer.effectAllowed = 'move'; // Indicate the type of operation
+
+            // Use setTimeout to allow the browser to render the drag image before hiding
+            setTimeout(() => {
+                if (draggedItem) { // Check if drag wasn't cancelled immediately
+                    draggedItem.style.opacity = '0.5'; // Make it semi-transparent
+                    draggedItem.classList.add('dragging');
+                }
+            }, 0);
+
+            // If dragging from a drop zone, remove matched style and show placeholder
+            if (sourceContainer.classList.contains('drop-zone')) {
+                sourceContainer.classList.remove('matched');
+                const placeholder = sourceContainer.querySelector('.placeholder-text');
+                if (placeholder) placeholder.style.display = 'inline';
+            }
+        }
+
+        function handleDragEnd(e) {
+            // This function now primarily handles cleanup and returning the item if the drop failed.
+
+            // Check if draggedItem exists (it should, unless something went wrong)
+            if (!draggedItem) return;
+
+            // Check if the item's current parent is different from its original source container
+            // This indicates it was successfully dropped elsewhere (handled by handleDrop)
+            // or if it's still in the source container (meaning drop failed or was cancelled)
+            const successfullyDropped = draggedItem.parentElement !== sourceContainer;
+
+            if (!successfullyDropped && sourceContainer) {
+                // If the parent is still the source container (or if it somehow lost its parent),
+                // and the source wasn't a drop-zone (meaning it started in the terms list)
+                // OR if it started in a drop zone but wasn't dropped in another valid one, put it back.
+                // Essentially, if handleDrop didn't successfully place it, return it.
+
+                // Find the original terms list for this question
+                const questionIndex = sourceContainer.closest('[data-question-index]')?.dataset.questionIndex ?? draggedItem.id.split('_')[1];
+                const questionElement = quizContainer.children[questionIndex];
+                const originalTermsContainer = questionElement?.querySelector('.terms-container-js');
+
+                // If the item started in a drop zone, remove it from there first
+                if (sourceContainer.classList.contains('drop-zone')) {
+                    sourceContainer.removeChild(draggedItem);
+                    sourceContainer.classList.remove('matched');
+                    const placeholder = sourceContainer.querySelector('.placeholder-text');
+                    if (placeholder) placeholder.style.display = 'inline';
+                }
+
+                // Append back to the original terms list if found
+                if (originalTermsContainer) {
+                    originalTermsContainer.appendChild(draggedItem);
+                }
+            }
+
+            // Always restore appearance and reset global variables
+            draggedItem.style.opacity = '1';
+            draggedItem.classList.remove('dragging');
+            draggedItem = null;
+            sourceContainer = null;
+        }
+
+
+        function handleDragOver(e) {
+            e.preventDefault(); // Necessary to allow dropping
+            const targetZone = e.target.closest('.drop-zone');
+            // Allow drop only if the target is a drop zone AND it doesn't already contain a draggable item
+            if (targetZone && !targetZone.querySelector('.draggable')) {
+                targetZone.classList.add('drag-over');
+                e.dataTransfer.dropEffect = 'move'; // Visual cue
+            } else {
+                e.dataTransfer.dropEffect = 'none'; // Indicate invalid drop target
+            }
+        }
+
+        function handleDragLeave(e) {
+            const targetZone = e.target.closest('.drop-zone');
+            if (targetZone) {
+                targetZone.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault(); // Prevent default browser behavior
+            const targetZone = e.target.closest('.drop-zone');
+
+            // Ensure we have a valid dragged item and the target zone is empty
+            if (draggedItem && targetZone && !targetZone.querySelector('.draggable')) {
+                targetZone.classList.remove('drag-over');
+
+                // Remove placeholder text before appending
+                const placeholder = targetZone.querySelector('.placeholder-text');
+                if (placeholder) placeholder.style.display = 'none';
+
+                // If the item came from another drop zone, remove it from there first
+                if (sourceContainer && sourceContainer.classList.contains('drop-zone') && sourceContainer !== targetZone) {
+                    sourceContainer.removeChild(draggedItem);
+                    sourceContainer.classList.remove('matched'); // Remove matched style from old zone
+                    const oldPlaceholder = sourceContainer.querySelector('.placeholder-text');
+                    if (oldPlaceholder) oldPlaceholder.style.display = 'inline'; // Show old placeholder
+                }
+
+                // Append the dragged item to the target zone
+                targetZone.appendChild(draggedItem);
+                targetZone.classList.add('matched'); // Indicate successful match visually
+
+                // Reset opacity and remove dragging class (handleDragEnd will also do this, but good to be sure)
+                draggedItem.style.opacity = '1';
+                draggedItem.classList.remove('dragging');
+
+                // Crucially, reset draggedItem here to signify a successful drop
+                // handleDragEnd will see draggedItem is null and won't try to return it.
+                // Update: Let handleDragEnd do the final cleanup. Just ensure the parent is updated.
+                // draggedItem = null; // Let handleDragEnd reset this
+            } else if (targetZone) {
+                // Target zone is not empty or other issue, remove hover effect
+                targetZone.classList.remove('drag-over');
+            }
+        }
+
+
+        // Function to calculate score and show results
+        function showResults() {
+            let score = 0;
+            let totalQuestions = quizData.length;
+            feedbackElement.innerHTML = '';
+
+            quizData.forEach((qData, index) => {
+                const questionElement = quizContainer.children[index];
+                const feedbackDiv = document.createElement('div');
+                feedbackDiv.classList.add('p-4', 'border', 'rounded-md', 'mb-4');
+                const questionTitle = document.createElement('p');
+                questionTitle.classList.add('font-semibold', 'mb-2');
+                questionTitle.textContent = `Pregunta ${index + 1}: ${qData.question}`;
+                feedbackDiv.appendChild(questionTitle);
+
+                let isCorrect = false;
+                let isAnswered = false; // Track if the question was attempted
+
+                if (qData.type === 'single') {
+                    const selectedOption = quizForm.querySelector(`input[name="question_${index}"]:checked`);
+                    const options = questionElement.querySelectorAll(`input[name="question_${index}"]`);
+                    isAnswered = !!selectedOption; // True if an option was selected
+
+                    options.forEach(optionInput => {
+                        const label = optionInput.closest('label');
+                        // Reset previous styles
+                        label.classList.remove('correct-answer', 'incorrect-answer');
+                        if (optionInput.value === qData.correctAnswer) {
+                            label.classList.add('correct-answer'); // Always highlight correct answer
+                            if (selectedOption && selectedOption.value === optionInput.value) {
+                                isCorrect = true;
+                            }
+                        } else if (selectedOption && selectedOption.value === optionInput.value) {
+                            label.classList.add('incorrect-answer'); // Highlight incorrect selection
+                        }
+                        // Disable input after submission
+                        optionInput.disabled = true;
+                    });
+
+                    const feedbackText = document.createElement('p');
+                    if (isAnswered) {
+                        if (isCorrect) {
+                            feedbackText.textContent = '¡Correcto!';
+                            feedbackText.classList.add('feedback-correct');
+                            score++;
+                        } else {
+                            feedbackText.textContent = `Incorrecto. La respuesta correcta es: ${qData.correctAnswer}`;
+                            feedbackText.classList.add('feedback-incorrect');
+                        }
+                        feedbackDiv.classList.add(isCorrect ? 'bg-green-50' : 'bg-red-50');
+                    } else {
+                        feedbackText.textContent = `No respondida. La respuesta correcta es: ${qData.correctAnswer}`;
+                        feedbackText.classList.add('feedback-incorrect');
+                        feedbackDiv.classList.add('bg-yellow-50'); // Indicate unanswered
+                    }
+                    feedbackDiv.appendChild(feedbackText);
+
+
+                } else if (qData.type === 'multiple') {
+                    const selectedOptions = quizForm.querySelectorAll(`input[name="question_${index}"]:checked`);
+                    const selectedValues = Array.from(selectedOptions).map(input => input.value);
+                    const correctAnswers = qData.correctAnswers;
+                    isAnswered = selectedOptions.length > 0; // True if at least one option was selected
+
+                    // Check if the selected options exactly match the correct answers
+                    isCorrect = isAnswered && // Must have selected something
+                        selectedValues.length === correctAnswers.length &&
+                        correctAnswers.every(answer => selectedValues.includes(answer));
+
+                    const options = questionElement.querySelectorAll(`input[name="question_${index}"]`);
+                    options.forEach(optionInput => {
+                        const label = optionInput.closest('label');
+                        const isSelected = selectedValues.includes(optionInput.value);
+                        const isCorrectAnswer = correctAnswers.includes(optionInput.value);
+                        // Reset previous styles
+                        label.classList.remove('correct-answer', 'incorrect-answer');
+
+                        if (isCorrectAnswer) {
+                            label.classList.add('correct-answer'); // Highlight all correct answers
+                        }
+                        if (isSelected && !isCorrectAnswer) {
+                            label.classList.add('incorrect-answer'); // Highlight wrongly selected
+                        }
+                        // Disable input after submission
+                        optionInput.disabled = true;
+                    });
+
+
+                    const feedbackText = document.createElement('p');
+                    if (isAnswered) {
+                        if (isCorrect) {
+                            feedbackText.textContent = '¡Correcto!';
+                            feedbackText.classList.add('feedback-correct');
+                            score++;
+                        } else {
+                            feedbackText.textContent = `Incorrecto. Las respuestas correctas son: ${correctAnswers.join(', ')}`;
+                            feedbackText.classList.add('feedback-incorrect');
+                        }
+                        feedbackDiv.classList.add(isCorrect ? 'bg-green-50' : 'bg-red-50');
+                    } else {
+                        feedbackText.textContent = `No respondida. Las respuestas correctas son: ${correctAnswers.join(', ')}`;
+                        feedbackText.classList.add('feedback-incorrect');
+                        feedbackDiv.classList.add('bg-yellow-50'); // Indicate unanswered
+                    }
+                    feedbackDiv.appendChild(feedbackText);
+
+
+                } else if (qData.type === 'matching') {
+                    const dropZones = questionElement.querySelectorAll('.drop-zone');
+                    let correctMatchesCount = 0;
+                    const totalMatches = qData.terms.length;
+                    let answeredMatchesCount = 0; // Count how many definitions have a term dropped on them
+
+                    const feedbackList = document.createElement('ul');
+                    feedbackList.classList.add('list-disc', 'list-inside', 'ml-4', 'mt-2');
+
+                    dropZones.forEach(zone => {
+                        const droppedItem = zone.querySelector('div[id^="term_"]'); // More specific selector
+                        const definition = zone.dataset.definition;
+                        // Reset styles
+                        zone.classList.remove('correct-answer', 'incorrect-answer', 'matched');
+
+                        if (droppedItem) {
+                            answeredMatchesCount++;
+                            // Reset styles
+                            droppedItem.classList.remove('correct-answer', 'incorrect-answer');
+                            const term = droppedItem.textContent;
+                            const isMatchCorrect = qData.correctMatches[term] === definition;
+
+                            const feedbackItem = document.createElement('li');
+
+                            if (isMatchCorrect) {
+                                correctMatchesCount++;
+                                droppedItem.classList.add('correct-answer');
+                                zone.classList.add('correct-answer');
+                                feedbackItem.classList.add('correct-match-feedback');
+                                feedbackItem.textContent = `Correcto: ${term} -> ${definition}`;
+                            } else {
+                                droppedItem.classList.add('incorrect-answer');
+                                zone.classList.add('incorrect-answer');
+                                feedbackItem.classList.add('incorrect-match-feedback');
+                                let correctTermForDef = Object.keys(qData.correctMatches).find(key => qData.correctMatches[key] === definition) || "N/A";
+                                feedbackItem.textContent = `Incorrecto: "${term}" no coincide con "${definition}". La definición correcta para "${definition}" era "${correctTermForDef}".`;
+                            }
+                            feedbackList.appendChild(feedbackItem);
+
+                            // Make items non-draggable after submission
+                            droppedItem.draggable = false;
+                            droppedItem.classList.remove('draggable');
+                            zone.removeEventListener('dragover', handleDragOver);
+                            zone.removeEventListener('dragleave', handleDragLeave);
+                            zone.removeEventListener('drop', handleDrop);
+
+                        } else {
+                            // Handle unmatched definitions (no item dropped here)
+                            const feedbackItem = document.createElement('li');
+                            feedbackItem.classList.add('incorrect-match-feedback');
+                            let correctTermForDef = Object.keys(qData.correctMatches).find(key => qData.correctMatches[key] === definition) || "N/A";
+                            feedbackItem.textContent = `No respondido: La definición "${definition}" debía unirse con "${correctTermForDef}".`;
+                            feedbackList.appendChild(feedbackItem);
+                            zone.classList.add('incorrect-answer'); // Style unanswered zone
+                        }
+                    });
+
+                    // Make remaining draggable terms (still in the terms list) non-draggable and mark as incorrect
+                    questionElement.querySelectorAll('.terms-container-js > div[id^="term_"]').forEach(termEl => {
+                        termEl.draggable = false;
+                        termEl.classList.remove('draggable');
+                        termEl.classList.add('incorrect-answer'); // Style unplaced terms
+                        const feedbackItem = document.createElement('li');
+                        feedbackItem.classList.add('incorrect-match-feedback');
+                        feedbackItem.textContent = `No respondido: El término "${termEl.textContent}" no fue unido.`;
+                        feedbackList.appendChild(feedbackItem);
+                    });
+
+
+                    feedbackDiv.appendChild(feedbackList);
+
+                    // Award points only if all matches are correct
+                    isCorrect = correctMatchesCount === totalMatches;
+                    isAnswered = answeredMatchesCount > 0 || questionElement.querySelectorAll('.terms-container-js > div[id^="term_"]').length < totalMatches; // Answered if at least one match attempted or not all terms are in the list
+
+                    if (isCorrect) {
+                        score++;
+                        feedbackDiv.classList.add('bg-green-50');
+                    } else if (isAnswered) { // If attempted but not fully correct
+                        feedbackDiv.classList.add('bg-red-50');
+                    } else { // If completely unanswered
+                        feedbackDiv.classList.add('bg-yellow-50');
+                    }
+                }
+
+                feedbackElement.appendChild(feedbackDiv);
+            });
+
+            scoreElement.textContent = `Tu puntuación: ${score} de ${totalQuestions}`;
+            resultsContainer.classList.remove('hidden');
+            // Disable submit button after showing results
+            quizForm.querySelector('button[type="submit"]').disabled = true;
+            quizForm.querySelector('button[type="submit"]').classList.add('opacity-50', 'cursor-not-allowed');
+
+            window.scrollTo({ top: resultsContainer.offsetTop - 20, behavior: 'smooth' }); // Scroll smoothly to results
+        }
+
+        // --- Event Listeners ---
+        quizForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            showResults();
+        });
+
+        retryButton.addEventListener('click', () => {
+            // Re-enable submit button
+            const submitButton = quizForm.querySelector('button[type="submit"]');
+            submitButton.disabled = false;
+            submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            // Reload the quiz
+            loadQuiz();
+            window.scrollTo(0, 0); // Scroll to top
+        });
+
+
+        // --- Initial Load ---
+        loadQuiz();
+
+    </script>
+
+</body>
+
+</html>
