@@ -1,4 +1,5 @@
 # Cuestionario Interactivo de Ciberseguridad
+> **Nota:** Este proyecto está deprecado. Ahora se encuentra en el repositorio [study-builder](https://github.com/Joacohbc/study-builder).
 
 Este es un simple cuestionario interactivo creado con HTML, CSS (Tailwind) y JavaScript. Permite presentar preguntas de opción única, opción múltiple y de unir conceptos.
 
